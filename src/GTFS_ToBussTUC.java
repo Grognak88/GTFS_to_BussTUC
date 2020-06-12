@@ -18,10 +18,8 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
-import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class GTFS_ToBussTUC {
@@ -38,8 +36,6 @@ public class GTFS_ToBussTUC {
 
 
     public static void main(String[] args) {
-
-
         ArrayList<String> files_list = new ArrayList<>();
 
         try {
