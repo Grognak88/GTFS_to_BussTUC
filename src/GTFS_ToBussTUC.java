@@ -7,10 +7,7 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang3.tuple.Triple;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -20,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class GTFS_ToBussTUC {
     // Global time variables and constants
@@ -27,17 +25,20 @@ public class GTFS_ToBussTUC {
     static final DateTimeFormatter IN_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
     static final DateTimeFormatter OUT_FORMAT = DateTimeFormatter.ofPattern("yyMMdd");
 
+
     // Globing pattern for which type of files to find
     static String glob_pattern = "glob:**/*.txt";
     // Input folder to find the files to convert
-    static String data_path = "/home/alex/IdeaProjects/GTFS_to_BussTUC/data/";
+    static String data_path = "data";
     // The output folder path... may be absolute or relative
-    static String out_folder = "/home/alex/IdeaProjects/GTFS_to_BussTUC/tables/r160_2222";
+    static String out_folder = "tables";
 
     // Will contain list of street endings
     static ArrayList<String> gater;
 
     public static void main(String[] args) {
+        var separator = File.separator;
+
         ArrayList<String> files_list = new ArrayList<>();
 
         try {
@@ -50,17 +51,20 @@ public class GTFS_ToBussTUC {
         File calendar_dates_file = null;
         File trips_file = null;
         File stops_file = null;
-        File stop_times_file = null;
+        String stop_times_path = "";
 
         try {
             for (String path : files_list) {
-                var strings = path.split("/");
+                if (separator.equals("\\")) {
+                    path = path.replaceAll(Pattern.quote(separator), "\\\\");
+                }
+                var strings = path.split(Pattern.quote(separator));
                 switch (strings[strings.length - 1]) {
                     case "calendar.txt" -> calendar_file = new File(path);
                     case "calendar_dates.txt" -> calendar_dates_file = new File(path);
                     case "trips.txt" -> trips_file = new File(path);
                     case "stops.txt" -> stops_file = new File(path);
-                    case "stop_times.txt" -> stop_times_file = new File(path);
+                    case "stop_times.txt" -> stop_times_path = path;
                     default -> System.out.println(path + " not used");
                 }
             }
@@ -77,7 +81,7 @@ public class GTFS_ToBussTUC {
         List<CSVRecord> calendar_dates_csv = null;
         List<CSVRecord> trips_csv = null;
         List<CSVRecord> stops_csv = null;
-        List<CSVRecord> stop_times_csv = null;
+        ArrayList<CSVRecord> stop_times_csv = new ArrayList<>();
 
         try {
             assert calendar_file != null;
@@ -96,21 +100,35 @@ public class GTFS_ToBussTUC {
             parser = CSVParser.parse(stops_file, Charset.defaultCharset(), csv_format);
             stops_csv = parser.getRecords();
 
-            assert stop_times_file != null;
-            parser = CSVParser.parse(stop_times_file, Charset.defaultCharset(), csv_format);
-            stop_times_csv = parser.getRecords();
+            try (BufferedReader reader = new BufferedReader(new FileReader(stop_times_path), 1048576 * 10)) {
+                Iterable<CSVRecord> records = csv_format.parse(reader);
+                for (CSVRecord record: records) {
+                    stop_times_csv.add(record);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
         } catch (IOException | NullPointerException e) {
             e.printStackTrace();
         }
         var dko_list = make_regdko_list(calendar_csv, calendar_dates_csv);
         var bus_list = make_regbus_list(trips_csv);
         var comp_and_hpl_list_and_statids = make_regcomp_and_hpl_list(stops_csv);
+        var pas_and_dep_lists = make_regpas_and_dep_list(stop_times_csv, trips_csv, comp_and_hpl_list_and_statids.getRight());
+
+        File newDir = new File(out_folder + separator + "r160_" + starting_date.format(OUT_FORMAT));
+         if (newDir.mkdir()) {
+             System.out.println(newDir.getAbsolutePath() + " created...");
+         } else {
+             System.err.println("Writing into existing folder");
+         }
 
 
-        predicate_printer(dko_list, "regdko.pl");
-        predicate_printer(bus_list, "regbus.pl");
-        predicate_printer(comp_and_hpl_list_and_statids.getLeft(),"regcomp.pl");
-        predicate_printer(comp_and_hpl_list_and_statids.getMiddle(),"reghpl.pl");
+        predicate_printer(dko_list, newDir.getAbsolutePath() + separator + "regdko.pl");
+        predicate_printer(bus_list, newDir.getAbsolutePath() + separator + "regbus.pl");
+        predicate_printer(comp_and_hpl_list_and_statids.getLeft(),newDir.getAbsolutePath() + separator + "regcomp.pl");
+        predicate_printer(comp_and_hpl_list_and_statids.getMiddle(),newDir.getAbsolutePath() + separator + "reghpl.pl");
     } // main method
 
     /**
@@ -205,12 +223,6 @@ public class GTFS_ToBussTUC {
         return Triple.of(comp_list, hpl_list, stat_id);
     }
 
-    private static ArrayList<String> make_regdep_list(List<CSVRecord> trips, List<CSVRecord> stop_times, HashMap<Integer, String> stat_ids) {
-
-
-        return new ArrayList<>();
-    }
-
     /**
      * Function that parses the calendar.txt and calendar_date.txt to regdko.pl format
      * @param calendar calendar.txt as a list of csv records
@@ -291,10 +303,20 @@ public class GTFS_ToBussTUC {
         return regdko;
     }
 
-    private static ArrayList<String> make_regpas_list(List<CSVRecord> stop_times, HashMap<Integer, String> stat_ids) {
-        var start_time = Integer.valueOf(0);
+    private static ArrayList<String> make_regpas_and_dep_list(ArrayList<CSVRecord> stop_times, List<CSVRecord> trips, HashMap<Integer, String> stat_ids) {
+        ArrayList<PasSegment> all_passes = new ArrayList<>();
+        HashMap<String, Integer> trip_seg_mapping = new HashMap<>();
 
-        for (CSVRecord record: stop_times) {
+        var counter = 0;
+
+        for (CSVRecord record :
+                stop_times) {
+            var seq = Integer.parseInt(record.get("stop_sequence"));
+            if (seq == 0) {
+                counter++;
+                all_passes.add(new PasSegment("" + counter, new ArrayList<>()));
+            }
+
 
         }
 
@@ -303,7 +325,7 @@ public class GTFS_ToBussTUC {
 
     private static void predicate_printer(ArrayList<String> predicates, String file) {
         try {
-            var out_file = new BufferedWriter(new FileWriter(out_folder + file));
+            var out_file = new BufferedWriter(new FileWriter(file));
 
             out_file.write("/* -*- Mode:Prolog; coding:utf-8; -*- */\n");
 
@@ -380,7 +402,9 @@ public class GTFS_ToBussTUC {
      */
     public static void setHpl(ArrayList<String> composite_stat_list, CSVRecord record, ArrayList<String> hpl_list, HashMap<Integer, String> stat_ids) {
         String statname = record.get("stop_name") + " " + record.get("platform_code");
-        String statid = statname.toLowerCase().replaceAll("/"," ").replaceAll("-"," ").trim().replaceAll(" ", "_");// Is sufficient as UTF-8 has higher support for norwegian characters and some of the characters are never used
+        String statid = statname.toLowerCase().replaceAll("/"," ").replaceAll("-"," ");// Is sufficient as UTF-8 has higher support for norwegian characters and some of the characters are never used
+        statid = statid.replaceAll(".()/|,&'", " ").trim().replaceAll(" +"," ").replaceAll(" ", "_");
+
 
         // store stop_id stat_id pair in hash map
         stat_ids.put(Integer.valueOf(record.get("stop_id").split(":")[2]), statid);
@@ -588,5 +612,50 @@ public class GTFS_ToBussTUC {
             return new IsGateRec(iStr.substring(0, iStr.length() - 3), "vn", true);
         }
         return new IsGateRec("", "", false);
+    }
+}
+
+class PasSegment {
+    private String seg_id;
+    private ArrayList<PasHelper> passes;
+
+    public PasSegment(String seg_id, ArrayList<PasHelper> passes) {
+        this.seg_id = seg_id;
+        this.passes = passes;
+    }
+
+    public String getSeg_id() {
+        return seg_id;
+    }
+
+    public void setSeg_id(String seg_id) {
+        this.seg_id = seg_id;
+    }
+
+    public ArrayList<PasHelper> getPasses() {
+        return passes;
+    }
+
+    public void setPasses(ArrayList<PasHelper> passes) {
+        this.passes = passes;
+    }
+
+    public boolean contains(PasHelper pas) {
+        return passes.contains(pas);
+    }
+
+    public void add(PasHelper pas) {
+        passes.add(pas);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof  PasSegment) {
+            var temp = (PasSegment) obj;
+
+            return this.getPasses().equals(temp.getPasses());
+        }
+
+        return false;
     }
 }
