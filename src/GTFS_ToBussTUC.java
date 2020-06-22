@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 public class GTFS_ToBussTUC {
     // Global time variables and constants
     static LocalDate starting_date = null;
+    static LocalDate ending_date = null;
     static final DateTimeFormatter IN_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
     static final DateTimeFormatter OUT_FORMAT = DateTimeFormatter.ofPattern("yyMMdd");
 
@@ -172,6 +173,11 @@ public class GTFS_ToBussTUC {
 
         System.out.println("Elapsed time: " + (stop_time - start_time) + " msec.");
 
+        System.out.println("\nUpdating routes ....");
+        String route_period_path = newDir.toPath().toAbsolutePath().getParent().getParent().toString() + separator + "route_period.pl";
+        UpdateRoutePeriode.main(new String[]{"Auto Update: " + LocalDate.now(), "r160", starting_date.format(OUT_FORMAT), ending_date.format(OUT_FORMAT), route_period_path});
+        System.out.println("Route Periods updated ... ");
+
     } // main method
 
     /**
@@ -277,7 +283,7 @@ public class GTFS_ToBussTUC {
      */
     private static ArrayList<String> make_regdko_list(List<CSVRecord> calendar, List<CSVRecord> calendar_dates) {
         starting_date = get_next_monday(get_date(calendar.get(0).get("start_date"))); // denotes the first start date it finds will be updated later
-
+        ending_date = get_date(calendar.get(0).get("end_date"));
         var mask_length = 406; // some long length unlikely to be exceeded in Prolog code unless server auto update fails for a long period of time
 
         ArrayList<DKO> dko_list = new ArrayList<>();
@@ -290,6 +296,10 @@ public class GTFS_ToBussTUC {
             }
         }
         for (CSVRecord record : calendar) {
+            if (get_date(record.get("end_date")).isAfter(ending_date)) {
+                ending_date = get_date(record.get("end_date"));
+            }
+
             var weeks = record.get("monday") + record.get("tuesday") + record.get("wednesday") + record.get("thursday") + record.get("friday") + record.get("saturday") + record.get("sunday");
             StringBuilder days = new StringBuilder();
             var record_starting_monday = get_next_monday(get_date(record.get("start_date")));

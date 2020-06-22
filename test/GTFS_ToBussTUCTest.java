@@ -41,4 +41,13 @@ class GTFS_ToBussTUCTest {
 
         assertEquals("00000Hello", result);
     }
+
+    @Test
+    void updateRoutePeriode() {
+        try {
+            UpdateRoutePeriode.updateRoutePeriod("testing", "r160", "200622", "201212", "routes.pl");
+        } catch (Exception e) {
+            fail();
+        }
+    }
 }
