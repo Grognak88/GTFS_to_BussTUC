@@ -3,7 +3,7 @@ import java.time.format.DateTimeFormatter;
 
 public class DKO {
     private final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern("yyMMdd");
-    private int day_code;
+    private String day_code;
     private LocalDate from;
     private LocalDate to;
     private String week1;
@@ -16,7 +16,7 @@ public class DKO {
     // Default constructor without given values
     public DKO(){}
 
-    public DKO(int day_code, LocalDate from, LocalDate to, String weeks, String days) {
+    public DKO(String day_code, LocalDate from, LocalDate to, String weeks, String days) {
         this.day_code = day_code;
         this.from = from;
         this.to = to;
@@ -27,11 +27,11 @@ public class DKO {
         this.days = days;
     }
 
-    public int getDay_code() {
+    public String getDay_code() {
         return day_code;
     }
 
-    public void setDay_code(int day_code) {
+    public void setDay_code(String day_code) {
         this.day_code = day_code;
     }
 
@@ -99,7 +99,7 @@ public class DKO {
         } else {
             other = new DKO();
         }
-        return this.day_code == other.day_code;
+        return this.day_code.equals(other.day_code);
     }
 
     @Override
