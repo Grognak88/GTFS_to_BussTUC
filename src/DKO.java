@@ -13,6 +13,8 @@ public class DKO {
 
     private String days;
 
+    private String old_day_code;
+
     // Default constructor without given values
     public DKO(){}
 
@@ -89,6 +91,14 @@ public class DKO {
 
     public void setDays(String days) {
         this.days = days;
+    }
+
+    public String getOld_day_code() {
+        return old_day_code;
+    }
+
+    public void setOld_day_code(String old_day_code) {
+        this.old_day_code = old_day_code;
     }
 
     @Override

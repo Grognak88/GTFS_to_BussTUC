@@ -152,7 +152,7 @@ public class GTFS_ToBussTUC {
         System.out.println("**********************************************************************");
         stat_ids = comp_and_hpl_list_and_statids.getRight();
         System.out.println("\nParsing to regdep and regpas ...");
-        var pas_and_dep_lists = make_regpas_and_dep_list(stop_times_csv, trips_csv);
+        var pas_and_dep_lists = make_regpas_and_dep_list(stop_times_csv, trips_csv, dko_list.getRight());
         System.out.println("**********************************************************************");
         System.out.println("Congratulations parsing finished successfully, writing files now ....");
 
@@ -163,7 +163,7 @@ public class GTFS_ToBussTUC {
             System.err.println("Writing into existing folder");
         }
 
-        predicate_printer(dko_list, newDir.getAbsolutePath() + separator + "regdko.pl");
+        predicate_printer(dko_list.getLeft(), newDir.getAbsolutePath() + separator + "regdko.pl");
         predicate_printer(bus_list, newDir.getAbsolutePath() + separator + "regbus.pl");
         predicate_printer(comp_and_hpl_list_and_statids.getLeft(), newDir.getAbsolutePath() + separator + "regcomp.pl");
         predicate_printer(comp_and_hpl_list_and_statids.getMiddle(), newDir.getAbsolutePath() + separator + "reghpl.pl");
@@ -286,7 +286,7 @@ public class GTFS_ToBussTUC {
      * @param calendar_dates calendar_dates.txt as a list of csv records
      * @return list of strings to be printed in regdko.pl
      */
-    private static ArrayList<String> make_regdko_list(List<CSVRecord> calendar, List<CSVRecord> calendar_dates) {
+    private static Pair<ArrayList<String>, HashMap<String, String>> make_regdko_list(List<CSVRecord> calendar, List<CSVRecord> calendar_dates) {
         starting_date = get_next_monday(get_date(calendar.get(0).get("start_date"))); // denotes the first start date it finds will be updated later
         ending_date = get_date(calendar.get(0).get("end_date"));
         var mask_length = 406; // some long length unlikely to be exceeded in Prolog code unless server auto update fails for a long period of time
@@ -353,22 +353,40 @@ public class GTFS_ToBussTUC {
                 dko_list.add(temp);
             }
         }
+        HashMap<String, String> old_to_new_day_code = new HashMap<>();
+
+        for (DKO dko :
+                dko_list) {
+            for (DKO other_dko :
+                    dko_list) {
+                if (!dko.equals(other_dko)) {
+                    if (dko.getDays().equals(other_dko.getDays())) {
+                        other_dko.setOld_day_code(other_dko.getDay_code());
+                        other_dko.setDay_code(dko.getDay_code());
+                        old_to_new_day_code.put(other_dko.getOld_day_code(), other_dko.getDay_code());
+                    }
+                }
+            }
+        }
 
         ArrayList<String> regdko = new ArrayList<>();
 
         regdko.add("dkodate(" + starting_date.format(OUT_FORMAT) + ",1).");
         for (DKO dko : dko_list) {
-            regdko.add(dko.toString());
+            var print_string = dko.toString();
+            if (!regdko.contains(print_string))
+                regdko.add(print_string);
         }
-        return regdko;
+        return Pair.of(regdko, old_to_new_day_code);
     }
 
     /**
      * @param stop_times list of csv records of stop times
      * @param trips      list of trips csv records
+     * @param old_to_new_day_code list of altered dko's
      * @return tuple with list of dep and pas outputs
      */
-    private static Pair<ArrayList<String>, ArrayList<String>> make_regpas_and_dep_list(ArrayList<CSVRecord> stop_times, List<CSVRecord> trips) {
+    private static Pair<ArrayList<String>, ArrayList<String>> make_regpas_and_dep_list(ArrayList<CSVRecord> stop_times, List<CSVRecord> trips, HashMap<String, String> old_to_new_day_code) {
         ArrayList<PasSegment> all_passes = new ArrayList<>();
         HashMap<String, Integer> trip_seg_mapping = new HashMap<>();
 
@@ -401,25 +419,25 @@ public class GTFS_ToBussTUC {
             all_passes.get(counter - 1).add(new PasHelper(record.get("stop_id").split(":")[2], record.get("arrival_time"), record.get("departure_time"), Integer.parseInt(record.get("stop_sequence")), arr, dep));
         }
 
-//        ArrayList<PasSegment> no_dup = new ArrayList<>();
-//
-//        /* This part unfortunately has a runtime of O(n^2) at worst and nlog(n) at best,
-//         but none of these will occur and will be somewhere in between closer to nlog(n),
-//         As the no_dup list will not grow linearly. */
-//        for (PasSegment segment : all_passes) {
-//            var index = is_unique(segment, no_dup);
-//            if (index == -1) {
-//                no_dup.add(segment);
-//            } else {
-//                trip_seg_mapping.replace(segment.getTrip_id(), trip_seg_mapping.get(all_passes.get(index).getTrip_id()));
-//            }
-//        }
+        ArrayList<PasSegment> no_dup = new ArrayList<>();
+
+        /* This part unfortunately has a runtime of O(n^2) at worst and nlog(n) at best,
+         but none of these will occur and will be somewhere in between closer to nlog(n),
+         As the no_dup list will not grow linearly. */
+        for (PasSegment segment : all_passes) {
+            var index = is_unique(segment, no_dup);
+            if (index == -1) {
+                no_dup.add(segment);
+            } else {
+                trip_seg_mapping.replace(segment.getTrip_id(), trip_seg_mapping.get(all_passes.get(index).getTrip_id()));
+            }
+        }
 
         ArrayList<String> pas_list = new ArrayList<>();
 
         // making the regpas.pl elements and store them in array list
         for (PasSegment segment :
-                all_passes) {
+                no_dup) {
             pas_list.add(segment.toString());
             pas_list.add("ntourstops(" + segment.getSeg_id() + ", " + segment.getPasses().size() + ").");
         }
@@ -437,6 +455,9 @@ public class GTFS_ToBussTUC {
             var dep_time_parts = segment.getPasses().get(0).getDeparture_time().split(":");
             var dep_time = Integer.parseInt(dep_time_parts[0] + dep_time_parts[1]);
             var day_code = trip.get("service_id").split(":")[2].replaceAll("_", "");
+            // Replacing daycode with the new one
+            if (old_to_new_day_code.containsKey(day_code))
+                day_code = old_to_new_day_code.get(day_code);
 
             var temp = "departureday( bus_" + trip_id_parts[0] + "_" + trip_id_parts[2] + ", " + trip_seg_mapping.get(trip.get("trip_id")) + ", " + dep_time + ", " + day_code + ").";
 
