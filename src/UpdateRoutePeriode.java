@@ -30,7 +30,8 @@ public class UpdateRoutePeriode {
             while ((strLine = reader.readLine()) != null) {
                 if( strLine.startsWith("%%route_period") || strLine.startsWith("route_period") || strLine.startsWith("%route_period")){
                     RoutePeriod p = new RoutePeriod( strLine );
-                    periods.add( p );
+                    if (!periods.contains(p))
+                        periods.add( p );
                 }
             }
         } catch ( FileNotFoundException e) {
@@ -115,9 +116,30 @@ class RoutePeriod implements Comparable<RoutePeriod>{
         return end_date;
     }
 
+    public LocalDate getStart_date() {
+        String date_string;
+        switch (route.substring(0, 5)) {
+            case "route" -> date_string = route.substring(38,48);
+            case "%rout" -> date_string = route.substring(39,49);
+            case "%%rou" -> date_string = route.substring(40,50);
+            default -> date_string = "2012,12,12";
+        }
+
+        return LocalDate.parse(date_string, UpdateRoutePeriode.FORMAT_OUT);
+    }
+
     @Override
     public String toString() {
         return this.route;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof RoutePeriod) {
+            return ((RoutePeriod) obj).getStart_date().equals(this.getStart_date()) && ((RoutePeriod) obj).getEnd_date().equals(this.getEnd_date());
+        }
+
+        return false;
     }
 
     @Override
