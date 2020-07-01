@@ -276,6 +276,9 @@ public class GTFS_ToBussTUC {
             setHpl(comp_list, record, hpl_list, stat_id);
         }
 
+        comp_list.sort(null);
+        hpl_list.sort(null);
+
         return Triple.of(comp_list, hpl_list, stat_id);
     }
 
@@ -371,12 +374,14 @@ public class GTFS_ToBussTUC {
 
         ArrayList<String> regdko = new ArrayList<>();
 
-        regdko.add("dkodate(" + starting_date.format(OUT_FORMAT) + ",1).");
         for (DKO dko : dko_list) {
             var print_string = dko.toString();
             if (!regdko.contains(print_string))
                 regdko.add(print_string);
         }
+        regdko.sort(null);
+        regdko.add(0, "dkodate(" + starting_date.format(OUT_FORMAT) + ",1).");
+
         return Pair.of(regdko, old_to_new_day_code);
     }
 
@@ -421,8 +426,8 @@ public class GTFS_ToBussTUC {
 
         ArrayList<PasSegment> no_dup = new ArrayList<>();
 
-        /* This part unfortunately has a runtime of O(n^2) at worst and nlog(n) at best,
-         but none of these will occur and will be somewhere in between closer to nlog(n),
+        /* This part unfortunately has a runtime of O(n^2) at worst and O(nlog(n)) at best,
+         but none of these will occur and will be somewhere in between closer to O(nlog(n)),
          As the no_dup list will not grow linearly. */
         for (PasSegment segment : all_passes) {
             var index = is_unique(segment, no_dup);
@@ -468,6 +473,7 @@ public class GTFS_ToBussTUC {
         }
 
         dep_list.sort(null);
+        pas_list.sort(null);
 
         return Pair.of(pas_list, dep_list);
     }
