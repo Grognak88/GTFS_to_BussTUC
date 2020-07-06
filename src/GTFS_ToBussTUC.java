@@ -617,7 +617,6 @@ public class GTFS_ToBussTUC {
         String statname = (record.get("stop_name") + " " + record.get("platform_code")).trim().replaceAll("'", "`");
         String statid = conv_statname(statname); // used util function from precious solution as the regex I tried did not work as expected all the time
 
-
         // store stop_id stat_id pair in hash map
         stat_ids.put(Integer.valueOf(record.get("stop_id").split(":")[2]), statid);
 
