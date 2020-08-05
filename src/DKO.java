@@ -114,6 +114,6 @@ public class DKO {
 
     @Override
     public String toString() {
-        return "dko("+day_code+","+from.format(FORMAT)+","+to.format(FORMAT)+","+week1+","+week2+","+week3+","+week4+",'"+days+"').";
+        return "dko('"+day_code+"',"+from.format(FORMAT)+","+to.format(FORMAT)+","+week1+","+week2+","+week3+","+week4+",'"+days+"').";
     }
 }
