@@ -322,12 +322,12 @@ public class GTFS_ToBussTUC {
 
             days = new StringBuilder(padRight(days.toString(), (mask_length - days.length())));
 
-            dko_list.add(new DKO(record.get("service_id"), record_starting_monday, get_date(record.get("end_date")), weeks, days.toString()));
+            dko_list.add(new DKO(record.get("service_id").split(":")[2].replaceAll("_",""), record_starting_monday, get_date(record.get("end_date")), weeks, days.toString()));
         }
 
         for (CSVRecord record : calendar_dates) {
             var temp = new DKO();
-            var temp_day_code = record.get("service_id");
+            var temp_day_code = record.get("service_id").split(":")[2].replaceAll("_","");
             temp.setDay_code(temp_day_code);
             var date = get_date(record.get("date"));
             var day_from_start = ChronoUnit.DAYS.between(starting_date, date);
@@ -459,12 +459,12 @@ public class GTFS_ToBussTUC {
             var segment = find(all_passes, trip.get("trip_id"));
             var dep_time_parts = segment.getPasses().get(0).getDeparture_time().split(":");
             var dep_time = Integer.parseInt(dep_time_parts[0] + dep_time_parts[1]);
-            var day_code = trip.get("service_id");
+            var day_code = trip.get("service_id").split(":")[2].replaceAll("_","");
             // Replacing daycode with the new one
             if (old_to_new_day_code.containsKey(day_code))
                 day_code = old_to_new_day_code.get(day_code);
 
-            var temp = "departureday( bus_" + trip_id_parts[0] + "_" + Math.abs(trip.get("trip_id").hashCode()) + ", " + trip_seg_mapping.get(trip.get("trip_id")) + ", " + dep_time + ", '" + day_code + "').";
+            var temp = "departureday( bus_" + trip_id_parts[0] + "_" + Math.abs(trip.get("trip_id").hashCode()) + ", " + trip_seg_mapping.get(trip.get("trip_id")) + ", " + dep_time + ", " + day_code + ").";
 
             if (!dep_list.contains(temp))
                 dep_list.add(temp);
