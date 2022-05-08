@@ -1,18 +1,23 @@
 /**
  * @author Alexander Erlingsen @since 2020.06.02
  *
- * This project is intended to work in unission with https://github.com/saetre/busstuc
+ * This project is intended to work in unison with https://github.com/saetre/busstuc
  */
 
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.commons.lang3.tuple.Triple;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.sql.Timestamp;
 import java.time.DayOfWeek;
@@ -20,8 +25,19 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.StringTokenizer;
 import java.util.regex.Pattern;
+
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 
 public class GTFS_ToBussTUC {
     // Global time variables and constants
@@ -34,18 +50,19 @@ public class GTFS_ToBussTUC {
     // Globing pattern for which type of files to find
     static String glob_pattern = "glob:**/*.txt";
     // Input folder to find the files to convert
-    static String data_path = "data_full";
+    static String data_path = "../busstuc/db/tables_GTFS_2022.05";
     // The output folder path... may be absolute or relative
-    static String out_folder = "tables";
+    static String out_folder = "../busstuc/db/tables";
     // stat_id to quay mappings
     static HashMap<Integer, String> stat_ids = new HashMap<>();
 
     // Will contain list of street endings
     static ArrayList<String> gater;
 
-    public static void main(String[] args) {
+    @SuppressWarnings("deprecation")
+	public static void main(String[] args) {
         var start_time = System.currentTimeMillis();
-        String usage = "USAGE:\n"
+        String usage = "GTFS_ToB~64 USAGE:\n"
                 + "java GTFS_ToBussTUC"
                 + " [INPUT_FOLDER] [OUTPUT_FOLDER]\n"
                 + "Converting the GTFS source in INPUT_FOLDER,\n"
@@ -54,8 +71,8 @@ public class GTFS_ToBussTUC {
         if(args.length != 2){
             System.err.println( usage );	//System.exit(1);
             System.err.println("Assuming default paths:");
-            System.err.println("SOURCE: ./data");
-            System.err.println("OUTPUT: ./tables");
+            System.err.println("SOURCE: "+ data_path ); // "./data");
+            System.err.println("OUTPUT: "+ out_folder ); // "./tables");
         }else{
             data_path = args[0];
             out_folder = args[1];
@@ -67,7 +84,7 @@ public class GTFS_ToBussTUC {
 
         try {
             files_list = match(glob_pattern, data_path);
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -401,7 +418,7 @@ public class GTFS_ToBussTUC {
         for (CSVRecord record :
                 stop_times) {
             var seq = Integer.parseInt(record.get("stop_sequence"));
-            if (seq == 0) {
+            if (seq == 1 ) { // not starting from 0 anymore ??!!?? RS-2022.05.02	//System.err.println( counter );
                 counter++;
                 var trip_id = record.get("trip_id");
                 all_passes.add(new PasSegment(counter, new ArrayList<>(), trip_id));
@@ -450,8 +467,8 @@ public class GTFS_ToBussTUC {
         pas_list.sort(null);
 
         ArrayList<String> dep_list = new ArrayList<>();
-        // index of each trip should correspond to each index in all passes
-        var index = 0;
+        // index of each trip should correspond to each index in all_passes
+        //var index = 0;
         // making the regdep.pl elements
         for (CSVRecord trip :
                 trips) {
@@ -466,10 +483,10 @@ public class GTFS_ToBussTUC {
 
             var temp = "departureday( bus_" + trip_id_parts[0] + "_" + Math.abs(trip.get("trip_id").hashCode()) + ", " + trip_seg_mapping.get(trip.get("trip_id")) + ", " + dep_time + ", " + day_code + ").";
 
-            if (!dep_list.contains(temp))
+            if (!dep_list.contains(temp)) {
                 dep_list.add(temp);
-
-            index++;
+            }
+            //index++;
         }
 
         dep_list.sort(null);
