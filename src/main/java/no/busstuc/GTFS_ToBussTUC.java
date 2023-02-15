@@ -420,7 +420,7 @@ public class GTFS_ToBussTUC {
         for (CSVRecord record :
                 stop_times) {
             var seq = Integer.parseInt(record.get("stop_sequence"));
-            if (seq == 0 ) { // not starting from 0 anymore ??!!?? RS-2022.05.02	//System.err.println( counter );
+            if (seq == 1 ) { // not starting from 0 anymore ??!!?? RS-2022.05.02	//System.err.println( counter );
                 counter++;
                 var trip_id = record.get("trip_id");
                 all_passes.add(new PasSegment(counter, new ArrayList<>(), trip_id));
